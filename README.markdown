@@ -10,9 +10,6 @@ Example
     from smpp.twisted.config import SMPPClientConfig
 
     class SMPP(object):
-    
-        QUEUE = '/queue/testOut'
-        ERROR_QUEUE = '/queue/testConsumerError'
 
         def __init__(self, config=None):
             if config is None:

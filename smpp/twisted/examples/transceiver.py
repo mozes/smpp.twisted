@@ -5,9 +5,6 @@ from smpp.twisted.config import SMPPClientConfig
 
 class SMPP(object):
     
-    QUEUE = '/queue/testOut'
-    ERROR_QUEUE = '/queue/testConsumerError'
-
     def __init__(self, config=None):
         if config is None:
             config = SMPPClientConfig(host='localhost', port=999, username='uname', password='pwd')
