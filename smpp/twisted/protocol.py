@@ -527,6 +527,9 @@ class SMPPClientProtocol( protocol.Protocol ):
             system_id = self.config().username,
             password = self.config().password, 
             system_type = self.config().systemType,
+            address_range = self.config().addressRange,
+            addr_ton = self.config().addressTon,
+            addr_npi = self.config().addressNpi,
             interface_version = self.version
         )
         return self.bind(pdu, SMPPSessionStates.BIND_RX_PENDING, SMPPSessionStates.BOUND_RX)
@@ -544,6 +547,9 @@ class SMPPClientProtocol( protocol.Protocol ):
             system_id = self.config().username, 
             password = self.config().password, 
             system_type = self.config().systemType,
+            address_range = self.config().addressRange,
+            addr_ton = self.config().addressTon,
+            addr_npi = self.config().addressNpi,
             interface_version = self.version
         )
         return self.bind(pdu, SMPPSessionStates.BIND_TX_PENDING, SMPPSessionStates.BOUND_TX)
@@ -567,6 +573,9 @@ class SMPPClientProtocol( protocol.Protocol ):
             system_id = self.config().username, 
             password = self.config().password,
             system_type = self.config().systemType,
+            address_range = self.config().addressRange,
+            addr_ton = self.config().addressTon,
+            addr_npi = self.config().addressNpi,
             interface_version = self.version
         )
         return self.bind(pdu, SMPPSessionStates.BIND_TRX_PENDING, SMPPSessionStates.BOUND_TRX)
