@@ -28,3 +28,6 @@ class SMPPClientConfig(object):
         self.pduReadTimerSecs = kwargs.get('pduReadTimerSecs', 10)
         self.useSSL = kwargs.get('useSSL', False)
         self.SSLCertificateFile = kwargs.get('SSLCertificateFile', None)
+        self.addressRange = kwargs.get('addressRange', None)
+        self.addressTon = kwargs.get('addressTon', None)
+        self.addressNpi = kwargs.get('addressNpi', None)

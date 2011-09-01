@@ -8,6 +8,9 @@ class SMPP(object):
     def __init__(self, config=None):
         if config is None:
             config = SMPPClientConfig(host='localhost', port=999, username='uname', password='pwd')
+
+            # Uncomment line below to recv SMS via #322223322 only
+            # config = SMPPClientConfig(host='localhost', port=999, username='uname', password='pwd', addressTon=AddrTon.UNKNOWN, addressNpi=AddrNpi.ISDN, addressRange='^322223322$')
         self.config = config
         
     @defer.inlineCallbacks
