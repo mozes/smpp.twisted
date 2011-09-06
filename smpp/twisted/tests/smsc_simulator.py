@@ -54,8 +54,7 @@ class BlackHoleSMSC( protocol.Protocol ):
         self.sendResponse(reqPDU, CommandStatus.ESME_ROK)
         
     def sendResponse(self, reqPDU, status):
-        respPDU = reqPDU.requireAck(reqPDU.seqNum)
-        respPDU.status = status
+        respPDU = reqPDU.requireAck(reqPDU.seqNum, status=status)
         self.sendPDU(respPDU)
 
     def sendPDU(self, pdu):
