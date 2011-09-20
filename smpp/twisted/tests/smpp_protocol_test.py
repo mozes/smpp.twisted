@@ -212,6 +212,17 @@ class ProtocolTestCase(unittest.TestCase):
         smpp.sessionState = SMPPSessionStates.BIND_TX_PENDING
         return self.assertFailure(smpp.unbind(), SMPPClientSessionStateError)
 
+    def test_server_initiated_unbind_cancels_enquire_link_timer(self):
+        smpp = self.getProtocolObject()
+        smpp.sendResponse = Mock()
+        smpp.disconnect = Mock()
+        
+        smpp.sessionState = SMPPSessionStates.BOUND_TRX
+        smpp.activateEnquireLinkTimer()
+        self.assertNotEquals(None, smpp.enquireLinkTimer)
+        smpp.onPDURequest_unbind(Unbind())
+        self.assertEquals(None, smpp.enquireLinkTimer)
+        
     def test_sendDataRequest_when_not_bound(self):
         smpp = self.getProtocolObject()
         smpp.sessionState = SMPPSessionStates.BIND_TX_PENDING

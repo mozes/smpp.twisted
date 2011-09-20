@@ -250,6 +250,7 @@ class SMPPClientProtocol( protocol.Protocol ):
         #Allow no more outbound data requests
         #Accept no more inbound requests
         self.sessionState = SMPPSessionStates.UNBIND_RECEIVED
+        self.cancelEnquireLinkTimer()
         #Cancel outbound requests
         self.cancelOutboundTransactions(SMPPClientSessionStateError('Unbind received'))
         #Wait for inbound requests to finish then ack and disconnect
