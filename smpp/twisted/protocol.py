@@ -83,12 +83,10 @@ class SMPPClientProtocol( protocol.Protocol ):
         self.log.warning("Disconnected: %s" % reason)
         
         self.sessionState = SMPPSessionStates.NONE
-                    
-        if self.enquireLinkTimer and self.enquireLinkTimer.active():
-            self.enquireLinkTimer.cancel()
-        if self.inactivityTimer and self.inactivityTimer.active():
-            self.inactivityTimer.cancel()
-        
+
+        self.cancelEnquireLinkTimer()
+        self.cancelInactivityTimer()
+
         self.disconnectedDeferred.callback(None)
 
     def dataReceived( self, data ):
@@ -389,6 +387,16 @@ class SMPPClientProtocol( protocol.Protocol ):
             self.inactivityTimer.reset(self.config().inactivityTimerSecs)
         elif self.config().inactivityTimerSecs:
             self.inactivityTimer = reactor.callLater(self.config().inactivityTimerSecs, self.inactivityTimerExpired)
+    
+    def cancelEnquireLinkTimer(self):
+        if self.enquireLinkTimer and self.enquireLinkTimer.active():
+            self.enquireLinkTimer.cancel()
+            self.enquireLinkTimer = None
+
+    def cancelInactivityTimer(self):
+        if self.inactivityTimer and self.inactivityTimer.active():
+            self.inactivityTimer.cancel()
+            self.inactivityTimer = None
             
     def enquireLinkTimerExpired(self):
         self.sendRequest(EnquireLink(), self.config().responseTimerSecs)
@@ -595,6 +603,8 @@ class SMPPClientProtocol( protocol.Protocol ):
         """
         if not self.isBound():
             return defer.fail(SMPPClientSessionStateError('unbind called with illegal session state: %s' % self.sessionState))
+        
+        self.cancelEnquireLinkTimer()
         
         self.log.info('Waiting for in-progress transactions to finish...')
                 

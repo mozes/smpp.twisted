@@ -211,9 +211,6 @@ class EnquireLinkTestCase(SimulatorTestCase):
 
     def setUp(self):
         SimulatorTestCase.setUp(self)
-        observer = log.PythonLoggingObserver()
-        observer.start()
-        logging.basicConfig(level=logging.DEBUG)
 
     @defer.inlineCallbacks
     def test_enquire_link(self):
@@ -243,11 +240,11 @@ class EnquireLinkTestCase(SimulatorTestCase):
         unbindDeferred = smpp.unbind()
 
         #Assert that enquireLinkTimer is no longer active after unbind is issued
-        # self.assertEquals(None, smpp.enquireLinkTimer)
+        self.assertEquals(None, smpp.enquireLinkTimer)
         
         yield unbindDeferred
         #Assert that enquireLinkTimer is no longer active after unbind is complete
-        # self.assertEquals(None, smpp.enquireLinkTimer)
+        self.assertEquals(None, smpp.enquireLinkTimer)
         yield smpp.disconnect()
         
     def wait(self, time_secs):
