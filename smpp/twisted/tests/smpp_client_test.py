@@ -211,41 +211,56 @@ class EnquireLinkTestCase(SimulatorTestCase):
 
     def setUp(self):
         SimulatorTestCase.setUp(self)
-        self.unbindDeferred = defer.Deferred()
 
+    @defer.inlineCallbacks
     def test_enquire_link(self):
         client = SMPPClientTransmitter(self.config)
-        bindDeferred = client.connectAndBind().addCallback(self.mock_stuff)
-        return defer.DeferredList([
-            bindDeferred, #asserts that bind was successful
-            self.unbindDeferred, #asserts that unbind was successful
-            ]
-        )
+        smpp = yield client.connect()
+        #Assert that enquireLinkTimer is not yet active until bind is complete
+        # self.assertEquals(None, smpp.enquireLinkTimer)
         
-    def mock_stuff(self, smpp):
+        bindDeferred = client.bind(smpp)
+        yield bindDeferred
+        #Assert that enquireLinkTimer is now active after bind is complete
+        self.assertNotEquals(None, smpp.enquireLinkTimer)
+        
+        #Wrap functions for tracking
         smpp.sendPDU = mock.Mock(wraps=smpp.sendPDU)
         smpp.PDUReceived = mock.Mock(wraps=smpp.PDUReceived)
-        reactor.callLater(0.25, self.do_unbind, smpp)
-        return smpp
         
-    def do_unbind(self, smpp):
-        smpp.unbind().addCallback(self.verifyEnquireLink).chainDeferred(self.unbindDeferred)
+        yield self.wait(0.25)
         
-    def verifyEnquireLink(self, txnResult):
-        smpp = txnResult.smpp
-        smpp.disconnect()
-        self.assertEquals(5, smpp.sendPDU.call_count)
-        self.assertEquals(5, smpp.PDUReceived.call_count)
+        self.verifyEnquireLink(smpp)
+        
+        #Assert that enquireLinkTimer is still active
+        self.assertNotEquals(None, smpp.enquireLinkTimer)
+        
+        unbindDeferred = smpp.unbind()
+
+        #Assert that enquireLinkTimer is no longer active after unbind is issued
+        # self.assertEquals(None, smpp.enquireLinkTimer)
+        
+        yield unbindDeferred
+        #Assert that enquireLinkTimer is no longer active after unbind is complete
+        # self.assertEquals(None, smpp.enquireLinkTimer)
+        yield smpp.disconnect()
+        
+    def wait(self, time_secs):
+        finished = defer.Deferred()
+        reactor.callLater(0.25, finished.callback, None)
+        return finished
+                
+    def verifyEnquireLink(self, smpp):
+        self.assertEquals(4, smpp.sendPDU.call_count)
+        self.assertEquals(4, smpp.PDUReceived.call_count)
         sent1 = smpp.sendPDU.call_args_list[0][0][0]
         sent2 = smpp.sendPDU.call_args_list[1][0][0]
         sent3 = smpp.sendPDU.call_args_list[2][0][0]
         sent4 = smpp.sendPDU.call_args_list[3][0][0]
-        sent5 = smpp.sendPDU.call_args_list[4][0][0]
         recv1 = smpp.PDUReceived.call_args_list[0][0][0]
         recv2 = smpp.PDUReceived.call_args_list[1][0][0]
         recv3 = smpp.PDUReceived.call_args_list[2][0][0]
         recv4 = smpp.PDUReceived.call_args_list[3][0][0]
-        recv5 = smpp.PDUReceived.call_args_list[4][0][0]
 
         self.assertEquals(EnquireLink(2), sent1)
         self.assertEquals(EnquireLinkResp(2), recv1)
@@ -259,9 +274,6 @@ class EnquireLinkTestCase(SimulatorTestCase):
         self.assertEquals(EnquireLink(2), recv4)
         self.assertEquals(EnquireLinkResp(2), sent4)
         
-        self.assertEquals(Unbind(4), sent5)
-        self.assertEquals(UnbindResp(4), recv5)
-
 class TransmitterLifecycleTestCase(SimulatorTestCase):
     protocol = HappySMSC
 
