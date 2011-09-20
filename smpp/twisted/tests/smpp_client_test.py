@@ -211,15 +211,20 @@ class EnquireLinkTestCase(SimulatorTestCase):
 
     def setUp(self):
         SimulatorTestCase.setUp(self)
+        observer = log.PythonLoggingObserver()
+        observer.start()
+        logging.basicConfig(level=logging.DEBUG)
 
     @defer.inlineCallbacks
     def test_enquire_link(self):
         client = SMPPClientTransmitter(self.config)
         smpp = yield client.connect()
-        #Assert that enquireLinkTimer is not yet active until bind is complete
-        # self.assertEquals(None, smpp.enquireLinkTimer)
+        #Assert that enquireLinkTimer is not yet active on connection
+        self.assertEquals(None, smpp.enquireLinkTimer)
         
         bindDeferred = client.bind(smpp)
+        #Assert that enquireLinkTimer is not yet active until bind is complete
+        self.assertEquals(None, smpp.enquireLinkTimer)
         yield bindDeferred
         #Assert that enquireLinkTimer is now active after bind is complete
         self.assertNotEquals(None, smpp.enquireLinkTimer)

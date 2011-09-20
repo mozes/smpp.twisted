@@ -373,11 +373,18 @@ class SMPPClientProtocol( protocol.Protocol ):
     def onSMPPOperation(self):
         """Called whenever an SMPP PDU is sent or received
         """
+        if self.isBound():
+            self.activateEnquireLinkTimer()
+
+        self.activateInactivityTimer()
+
+    def activateEnquireLinkTimer(self):
         if self.enquireLinkTimer and self.enquireLinkTimer.active():
             self.enquireLinkTimer.reset(self.config().enquireLinkTimerSecs)
         elif self.config().enquireLinkTimerSecs:
             self.enquireLinkTimer = reactor.callLater(self.config().enquireLinkTimerSecs, self.enquireLinkTimerExpired)
-        
+            
+    def activateInactivityTimer(self):
         if self.inactivityTimer and self.inactivityTimer.active():
             self.inactivityTimer.reset(self.config().inactivityTimerSecs)
         elif self.config().inactivityTimerSecs:
@@ -485,7 +492,8 @@ class SMPPClientProtocol( protocol.Protocol ):
             
     def bindSucceeded(self, result, nextState):
         self.sessionState = nextState
-        self.log.warning("Bind succeeed...now in state %s" % str(self.sessionState))
+        self.log.warning("Bind succeeded...now in state %s" % str(self.sessionState))
+        self.activateEnquireLinkTimer()
         return result
         
     def bindFailed(self, reason):
