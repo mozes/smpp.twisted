@@ -7,7 +7,7 @@ def read(fname):
 from setuptools import setup, find_packages
 setup(
     name = "smpp.twisted",
-    version = "0.1",
+    version = "0.2",
     author = "Roger Hoover",
     author_email = "roger.hoover@gmail.com",
     description = "SMPP 3.4 client built on Twisted",
