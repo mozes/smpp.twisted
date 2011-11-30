@@ -572,15 +572,14 @@ class ReceiverDataHandlerExceptionTestCase(SimulatorTestCase):
     def setUp(self):
         SimulatorTestCase.setUp(self)
         self.disconnectDeferred = defer.Deferred()
+        self.verifiedDeferred = defer.Deferred()
 
     def test_receiver_exception(self):
         client = SMPPClientReceiver(self.config, self.barf)
         bindDeferred = client.connectAndBind().addCallback(self.do_test_setup)
-        return defer.DeferredList([
-            bindDeferred,
-            self.disconnectDeferred.addCallback(self.verify),
-        ])
-        
+        self.disconnectDeferred.addCallback(lambda result: defer.maybeDeferred(self.verify).chainDeferred(self.verifiedDeferred))
+        return self.verifiedDeferred
+                
     def barf(self, smpp, pdu):
         raise ValueError('barf')
         
@@ -591,7 +590,7 @@ class ReceiverDataHandlerExceptionTestCase(SimulatorTestCase):
         smpp.getDisconnectedDeferred().chainDeferred(self.disconnectDeferred)
         return smpp
         
-    def verify(self, result):
+    def verify(self):
         self.assertEquals(2, self.smpp.PDUReceived.call_count)
         self.assertEquals(2, self.smpp.sendPDU.call_count)
         recv1 = self.smpp.PDUReceived.call_args_list[0][0][0]
@@ -602,6 +601,7 @@ class ReceiverDataHandlerExceptionTestCase(SimulatorTestCase):
         self.assertEquals(recv1.requireAck(recv1.seqNum, CommandStatus.ESME_RX_T_APPN), sent1)
         self.assertTrue(isinstance(sent2, Unbind))
         self.assertTrue(isinstance(recv2, UnbindResp))
+        self.verifiedDeferred.callback(None)
 
 class ReceiverDataHandlerBadResponseParamTestCase(SimulatorTestCase):
     protocol = DeliverSMSMSC
