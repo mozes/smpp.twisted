@@ -599,7 +599,7 @@ class ReceiverDataHandlerBadResponseParamTestCase(SimulatorTestCase):
     @defer.inlineCallbacks
     def test_receiver_bad_resp_param(self):
         client = SMPPClientReceiver(self.config, self.respondBadParam)
-        smpp = client.connectAndBind()
+        smpp = yield client.connectAndBind()
         
         smpp.PDUReceived = mock.Mock(wraps=smpp.PDUReceived)
         smpp.sendPDU = mock.Mock(wraps=smpp.sendPDU)
@@ -619,18 +619,6 @@ class ReceiverDataHandlerBadResponseParamTestCase(SimulatorTestCase):
         
     def respondBadParam(self, smpp, pdu):
         return DataHandlerResponse(delivery_failure_reason=DeliveryFailureReason.PERMANENT_NETWORK_ERROR)
-                
-    def verify(self, result):
-        self.assertEquals(2, self.smpp.PDUReceived.call_count)
-        self.assertEquals(2, self.smpp.sendPDU.call_count)
-        recv1 = self.smpp.PDUReceived.call_args_list[0][0][0]
-        recv2 = self.smpp.PDUReceived.call_args_list[1][0][0]
-        sent1 = self.smpp.sendPDU.call_args_list[0][0][0]
-        sent2 = self.smpp.sendPDU.call_args_list[1][0][0]
-        self.assertTrue(isinstance(recv1, DeliverSM))
-        self.assertEquals(recv1.requireAck(recv1.seqNum, CommandStatus.ESME_RX_T_APPN), sent1)
-        self.assertTrue(isinstance(sent2, Unbind))
-        self.assertTrue(isinstance(recv2, UnbindResp))
 
 class ReceiverUnboundErrorTestCase(SimulatorTestCase):
     protocol = DeliverSMBeforeBoundSMSC
