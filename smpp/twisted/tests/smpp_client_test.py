@@ -352,29 +352,25 @@ class AlertNotificationTestCase(SimulatorTestCase):
 class CommandLengthTooShortTestCase(SimulatorTestCase):
     protocol = CommandLengthTooShortSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.msgSentDeferred = defer.Deferred()
-
     def test_generic_nack_on_invalid_cmd_len(self):
         client = SMPPClientTransceiver(self.config, lambda smpp, pdu: None)
-        bindDeferred = client.connectAndBind().addCallback(self.mock_sendPDU)
-        return self.msgSentDeferred.addCallback(self.verifyNackSent)
-    
-    def mock_sendPDU(self, smpp):
-        self.smpp = smpp
+        smpp = yield client.connectAndBind()
+
+        msgSentDeferred = defer.Deferred()
+
         smpp.sendPDU = mock.Mock()
-        smpp.sendPDU.side_effect = self.mock_side_effect
-        
-    def mock_side_effect(self, pdu):
-        self.msgSentDeferred.callback(self.smpp)
+        smpp.sendPDU.side_effect = functools.partial(self.mock_side_effect, msgSentDeferred)
+
+        yield msgSentDeferred
+
+        yield smpp.disconnect()
+
+        self.assertEquals(1, smpp.sendPDU.call_count)
+        smpp.sendPDU.assert_called_with(GenericNack(status=CommandStatus.ESME_RINVMSGLEN))
+
+    def mock_side_effect(self, msgSentDeferred, pdu):
+        msgSentDeferred.callback(None)
         return mock.DEFAULT
-        
-    def verifyNackSent(self, result):
-        self.assertEquals(1, self.smpp.sendPDU.call_count)
-        sentPDU = self.smpp.sendPDU.call_args[0][0]
-        expectedPDU = GenericNack(seqNum=None, status=CommandStatus.ESME_RINVMSGLEN)
-        self.assertEquals(expectedPDU, sentPDU)
 
 class CommandLengthTooLongTestCase(SimulatorTestCase):
     protocol = CommandLengthTooLongSMSC
