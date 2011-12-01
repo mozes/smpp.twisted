@@ -644,21 +644,15 @@ class ReceiverUnboundErrorTestCase(SimulatorTestCase):
 class OutbindTestCase(SimulatorTestCase):
     protocol = OutbindSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.disconnectDeferred = defer.Deferred()
-
     def msgHandler(self, smpp, pdu):
-        smpp.unbindAndDisconnect().chainDeferred(self.disconnectDeferred)
+        smpp.unbindAndDisconnect()
         return None
 
+    @defer.inlineCallbacks
     def test_outbind(self):
         client = SMPPClientReceiver(self.config, self.msgHandler)
-        connectDeferred = client.connect()
-        return defer.DeferredList([
-            connectDeferred,
-            self.disconnectDeferred,
-        ])
+        smpp = yield client.connect()
+        yield smpp.getDisconnectedDeferred()
 
 class SMPPClientServiceBindTimeoutTestCase(SimulatorTestCase):
     configArgs = {
