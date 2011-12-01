@@ -14,6 +14,7 @@ Copyright 2009-2010 Mozes, Inc.
    limitations under the License.
 """
 import logging
+import functools
 from twisted.trial import unittest
 from twisted.internet import error, reactor, defer
 from twisted.internet.protocol import Factory 
@@ -435,31 +436,28 @@ class InvalidCommandIdTestCase(SimulatorTestCase):
 class NonFatalParseErrorTestCase(SimulatorTestCase):
     protocol = NonFatalParseErrorSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.msgSentDeferred = defer.Deferred()
-
+    @defer.inlineCallbacks
     def test_nack_on_invalid_msg(self):
         client = SMPPClientTransceiver(self.config, lambda smpp, pdu: None)
-        bindDeferred = client.connectAndBind().addCallback(self.mock_sendPDU)
-        return self.msgSentDeferred.addCallback(self.verifyNackSent)
-    
-    def mock_sendPDU(self, smpp):
-        self.smpp = smpp
-        smpp.sendPDU = mock.Mock()
-        smpp.sendPDU.side_effect = self.mock_side_effect
+        smpp = yield client.connectAndBind()
         
-    def mock_side_effect(self, pdu):
-        self.msgSentDeferred.callback(self.smpp)
+        msgSentDeferred = defer.Deferred()
+        
+        smpp.sendPDU = mock.Mock()
+        smpp.sendPDU.side_effect = functools.partial(self.mock_side_effect, msgSentDeferred)
+        
+        yield msgSentDeferred
+        
+        yield smpp.disconnect()
+        self.assertEquals(1, smpp.sendPDU.call_count)
+        sentPDU = smpp.sendPDU.call_args[0][0]
+        expectedPDU = QuerySMResp(seqNum=self.protocol.seqNum, status=CommandStatus.ESME_RINVSRCTON)
+        self.assertEquals(expectedPDU, sentPDU)
+                    
+    def mock_side_effect(self, msgSentDeferred, pdu):
+        msgSentDeferred.callback(None)
         return mock.DEFAULT
         
-    def verifyNackSent(self, result):
-        self.smpp.disconnect()
-        self.assertEquals(1, self.smpp.sendPDU.call_count)
-        sentPDU = self.smpp.sendPDU.call_args[0][0]
-        expectedPDU = QuerySMResp(seqNum=self.protocol.seqNum, status=CommandStatus.ESME_RINVSRCTON)
-        self.assertEquals(expectedPDU, sentPDU) 
-
 class GenericNackNoSeqNumTestCase(SimulatorTestCase):
     protocol = GenericNackNoSeqNumOnSubmitSMSC
 
@@ -478,7 +476,6 @@ class GenericNackNoSeqNumTestCase(SimulatorTestCase):
             self.assertTrue(False, "SMPPClientConnectionCorruptedError not raised")
             
         #for nack with no seq num, the connection is corrupt so don't unbind()
-        print smpp.sendPDU.call_args_list
         self.assertEquals(0, smpp.sendPDU.call_count)      
         
 class GenericNackWithSeqNumTestCase(SimulatorTestCase):
