@@ -535,32 +535,22 @@ class ErrorOnSubmitTestCase(SimulatorTestCase):
 class ReceiverLifecycleTestCase(SimulatorTestCase):
     protocol = DeliverSMAndUnbindSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.disconnectDeferred = defer.Deferred()
-
+    @defer.inlineCallbacks
     def test_receiver_lifecycle(self):
         client = SMPPClientReceiver(self.config, lambda smpp, pdu: None)
-        bindDeferred = client.connectAndBind().addCallback(self.do_test_setup)
-        return defer.DeferredList([
-            bindDeferred,
-            self.disconnectDeferred.addCallback(self.verify),
-        ])
+        smpp = yield client.connectAndBind()
         
-    def do_test_setup(self, smpp):
-        self.smpp = smpp
         smpp.PDUReceived = mock.Mock(wraps=smpp.PDUReceived)
         smpp.sendPDU = mock.Mock(wraps=smpp.sendPDU)
-        smpp.getDisconnectedDeferred().chainDeferred(self.disconnectDeferred)
-        return smpp
         
-    def verify(self, result):
-        self.assertEquals(2, self.smpp.PDUReceived.call_count)
-        self.assertEquals(2, self.smpp.sendPDU.call_count)
-        recv1 = self.smpp.PDUReceived.call_args_list[0][0][0]
-        recv2 = self.smpp.PDUReceived.call_args_list[1][0][0]
-        sent1 = self.smpp.sendPDU.call_args_list[0][0][0]
-        sent2 = self.smpp.sendPDU.call_args_list[1][0][0]
+        yield smpp.getDisconnectedDeferred()
+        
+        self.assertEquals(2, smpp.PDUReceived.call_count)
+        self.assertEquals(2, smpp.sendPDU.call_count)
+        recv1 = smpp.PDUReceived.call_args_list[0][0][0]
+        recv2 = smpp.PDUReceived.call_args_list[1][0][0]
+        sent1 = smpp.sendPDU.call_args_list[0][0][0]
+        sent2 = smpp.sendPDU.call_args_list[1][0][0]
         self.assertTrue(isinstance(recv1, DeliverSM))
         self.assertEquals(recv1.requireAck(recv1.seqNum), sent1)
         self.assertTrue(isinstance(recv2, Unbind))
