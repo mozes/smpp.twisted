@@ -210,9 +210,6 @@ class EnquireLinkTestCase(SimulatorTestCase):
         'enquireLinkTimerSecs': 0.1,
     }
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-
     @defer.inlineCallbacks
     def test_enquire_link(self):
         client = SMPPClientTransmitter(self.config)
@@ -305,39 +302,28 @@ class TransmitterLifecycleTestCase(SimulatorTestCase):
 class AlertNotificationTestCase(SimulatorTestCase):
     protocol = AlertNotificationSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.unbindDeferred = defer.Deferred()
-        self.dataSMDeferred = defer.Deferred()
-        self.disconnectDeferred = defer.Deferred()
-        self.alertNotificationDeferred = defer.Deferred()
-
+    @defer.inlineCallbacks
     def test_alert_notification(self):
         client = SMPPClientTransmitter(self.config)
-        bindDeferred = client.connectAndBind().addCallback(self.do_test)
-        return defer.DeferredList([
-            bindDeferred, #asserts that bind was successful
-            self.dataSMDeferred, #asserts that data_sm was successful
-            self.alertNotificationDeferred, #asserts that alert notification handler was invoked
-            self.disconnectDeferred.addCallback(self.verify), #asserts that disconnect was successful
-        ])
+        smpp = yield client.connectAndBind()
         
-    def alert_handler(self, smpp, pdu):
-        self.assertTrue(isinstance(pdu, AlertNotification))
-        self.alertNotificationDeferred.callback(pdu)
-        smpp.unbindAndDisconnect()
+        alertNotificationDeferred = defer.Deferred()
+        alertHandler = mock.Mock(wraps=lambda smpp, pdu: alertNotificationDeferred.callback(None))
+        smpp.setAlertNotificationHandler(alertHandler)
+                
+        sendDataDeferred = smpp.sendDataRequest(DataSM())
         
-    def do_test(self, smpp):
-        smpp.setAlertNotificationHandler(self.alert_handler)
-        self.smpp = smpp
-        smpp.getDisconnectedDeferred().chainDeferred(self.disconnectDeferred)
-        smpp.sendDataRequest(DataSM()).chainDeferred(self.dataSMDeferred)
         smpp.sendPDU = mock.Mock(wraps=smpp.sendPDU)
         smpp.PDUReceived = mock.Mock(wraps=smpp.PDUReceived)
-        return smpp
         
-    def verify(self, result):
-        smpp = self.smpp
+        yield sendDataDeferred
+        yield alertNotificationDeferred
+        yield smpp.unbindAndDisconnect()
+        
+        self.assertEquals(1, alertHandler.call_count)
+        self.assertEquals(smpp, alertHandler.call_args[0][0])
+        self.assertTrue(isinstance(alertHandler.call_args[0][1], AlertNotification))
+        
         self.assertEquals(1, smpp.sendPDU.call_count)
         self.assertEquals(3, smpp.PDUReceived.call_count)
         sent1 = smpp.sendPDU.call_args[0][0]
