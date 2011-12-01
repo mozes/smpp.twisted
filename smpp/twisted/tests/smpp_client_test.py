@@ -513,25 +513,19 @@ class GenericNackWithSeqNumTestCase(SimulatorTestCase):
 class ErrorOnSubmitTestCase(SimulatorTestCase):
     protocol = ErrorOnSubmitSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.submitSMDeferred = defer.Deferred()
-        self.disconnectDeferred = defer.Deferred()
-
+    @defer.inlineCallbacks
     def test_error_on_submit(self):
         client = SMPPClientTransceiver(self.config, lambda smpp, pdu: None)
-        bindDeferred = client.connectAndBind().addCallback(self.do_test_setup)
-        return defer.DeferredList([
-            bindDeferred,
-            self.disconnectDeferred,
-            self.assertFailure(self.submitSMDeferred, SMPPTransactionError),
-        ])
+        smpp = yield client.connectAndBind()
+        try:
+            yield smpp.sendDataRequest(SubmitSM())
+        except SMPPTransactionError:
+            pass
+        else:
+            self.assertTrue(False, "SMPPTransactionError not raised")
+        finally:
+            yield smpp.unbindAndDisconnect()
         
-    def do_test_setup(self, smpp):
-        smpp.getDisconnectedDeferred().chainDeferred(self.disconnectDeferred)
-        smpp.sendDataRequest(SubmitSM()).chainDeferred(self.submitSMDeferred).addCallback(lambda result: smpp.unbindAndDisconnect())
-        return smpp
-
 class ReceiverLifecycleTestCase(SimulatorTestCase):
     protocol = DeliverSMAndUnbindSMSC
 
