@@ -491,25 +491,20 @@ class GenericNackNoSeqNumTestCase(SimulatorTestCase):
 class GenericNackWithSeqNumTestCase(SimulatorTestCase):
     protocol = GenericNackWithSeqNumOnSubmitSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.submitSMDeferred = defer.Deferred()
-        self.disconnectDeferred = defer.Deferred()
-
+    @defer.inlineCallbacks
     def test_generic_nack_no_seq_num(self):
         client = SMPPClientTransceiver(self.config, lambda smpp, pdu: None)
-        bindDeferred = client.connectAndBind().addCallback(self.do_test_setup)
-        return defer.DeferredList([
-            bindDeferred,
-            self.disconnectDeferred,
-            self.assertFailure(self.submitSMDeferred, SMPPGenericNackTransactionError),
-        ])
+        smpp = yield client.connectAndBind()
         
-    def do_test_setup(self, smpp):
-        smpp.getDisconnectedDeferred().chainDeferred(self.disconnectDeferred)
-        smpp.sendDataRequest(SubmitSM()).chainDeferred(self.submitSMDeferred).addCallback(lambda result: smpp.unbindAndDisconnect())
-        return smpp
-        
+        try:
+            yield smpp.sendDataRequest(SubmitSM())
+        except SMPPGenericNackTransactionError:
+            pass
+        else:
+            self.assertTrue(False, "SMPPGenericNackTransactionError not raised")
+        finally:
+            yield smpp.unbindAndDisconnect()
+                
 class ErrorOnSubmitTestCase(SimulatorTestCase):
     protocol = ErrorOnSubmitSMSC
 
