@@ -463,31 +463,24 @@ class NonFatalParseErrorTestCase(SimulatorTestCase):
 class GenericNackNoSeqNumTestCase(SimulatorTestCase):
     protocol = GenericNackNoSeqNumOnSubmitSMSC
 
-    def setUp(self):
-        SimulatorTestCase.setUp(self)
-        self.submitSMDeferred = defer.Deferred()
-        self.disconnectDeferred = defer.Deferred()
-
+    @defer.inlineCallbacks
     def test_generic_nack_no_seq_num(self):
         client = SMPPClientTransceiver(self.config, lambda smpp, pdu: None)
-        bindDeferred = client.connectAndBind().addCallback(self.do_test_setup)
-        return defer.DeferredList([
-            bindDeferred,
-            self.assertFailure(self.submitSMDeferred, SMPPClientConnectionCorruptedError),
-            self.disconnectDeferred.addCallback(self.verify),
-        ])
+        smpp = yield client.connectAndBind()
         
-    def do_test_setup(self, smpp):
-        self.smpp = smpp
-        smpp.getDisconnectedDeferred().chainDeferred(self.disconnectDeferred)
-        smpp.sendDataRequest(SubmitSM()).chainDeferred(self.submitSMDeferred)
-        smpp.sendPDU = mock.Mock(wraps=smpp.sendPDU)
-        return smpp
+        try:
+            submitDeferred = smpp.sendDataRequest(SubmitSM())
+            smpp.sendPDU = mock.Mock(wraps=smpp.sendPDU)
+            yield submitDeferred
+        except SMPPClientConnectionCorruptedError:
+            pass
+        else:
+            self.assertTrue(False, "SMPPClientConnectionCorruptedError not raised")
             
-    def verify(self, result):
         #for nack with no seq num, the connection is corrupt so don't unbind()
-        self.assertEquals(0, self.smpp.sendPDU.call_count)
-
+        print smpp.sendPDU.call_args_list
+        self.assertEquals(0, smpp.sendPDU.call_count)      
+        
 class GenericNackWithSeqNumTestCase(SimulatorTestCase):
     protocol = GenericNackWithSeqNumOnSubmitSMSC
 
