@@ -38,3 +38,8 @@ Example
         logging.basicConfig(level=logging.DEBUG)
         SMPP().run()
         reactor.run()
+        
+Credits
+=======
+* Thanks to [rtrdev](https://github.com/rtrdev) for adding support for SMPP servers
+* Thanks to [Fourat Zouari](https://github.com/fourat) for finding and fixing an enquirelinks bug
