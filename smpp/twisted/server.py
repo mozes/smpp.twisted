@@ -176,6 +176,7 @@ class SMPPBindManager(object):
         receiver bindings. Call this method to determine which
         binding to send down next so that traffic travels equally
         down the different binds.
+        @return smpp protocol or None
         """
         binding = None
         # If we now have more trx/rx bindings than have been used
@@ -198,9 +199,7 @@ class SMPPBindManager(object):
                 # If so then use it
                 binding = _binding
         
-        if binding is None:
-            self.log.warning("Couldn't find a binding to use to deliver SMPP message")
-        else:    
+        if binding is not None:
             self._delivery_binding_history.append(binding)
         return binding
         
