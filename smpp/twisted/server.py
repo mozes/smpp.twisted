@@ -38,6 +38,14 @@ class SMPPServerFactory(ServerFactory):
     def getConfig(self):
         return self.config
 
+    def getBoundConnectionCountsStr(self, system_id):
+        bind_counts = self.bound_connections[system_id].getBindingCountByType()
+        bound_connections_count = []
+        for key, value in bind_counts.iteritems(): 
+            bound_connections_count.append("%s: %d" % (key, value))
+        bound_connections_str = ', '.join(bound_connections_count)
+        return bound_connections_str
+
     def addBoundConnection(self, connection):
         """
         Add a protocol instance to the list of current connections.
@@ -48,7 +56,8 @@ class SMPPServerFactory(ServerFactory):
         if not system_id in self.bound_connections:
             self.bound_connections[system_id] = SMPPBindManager(system_id)
         self.bound_connections[system_id].addBinding(connection)
-        self.log.debug("'%s' now has %d bound SMPP connections" % (system_id, self.bound_connections[system_id].getBindingCount()))
+        bind_type = connection.bind_type
+        self.log.info("Added %s bind for '%s'. Active binds: %s. Max binds: %s" % (bind_type, system_id, self.getBoundConnectionCountsStr(system_id), self.config.systems[system_id]['max_bindings']))
         
     def removeConnection(self, connection):
         """
@@ -56,11 +65,12 @@ class SMPPServerFactory(ServerFactory):
         @param connection: An instance of SMPPServerProtocol
         """
         if connection.system_id is None:
-            logging.debug("SMPP connection attempt failed without binding.")
+            self.log.debug("SMPP connection attempt failed without binding.")
         else:
             system_id = connection.system_id
-            self.log.debug('Dropping SMPP binding for: %s. %d remain bound for this user' % (system_id, self.bound_connections[system_id].getBindingCount()-1))
+            bind_type = connection.bind_type
             self.bound_connections[system_id].removeBinding(connection)
+            self.log.info("Dropped %s bind for '%s'. Active binds: %s. Max binds: %s" % (bind_type, system_id, self.getBoundConnectionCountsStr(system_id), self.config.systems[system_id]['max_bindings']))
             # If this is the last binding for this service then remove the BindManager
             if self.bound_connections[system_id].getBindingCount() == 0:
                 self.bound_connections.pop(system_id)
@@ -130,6 +140,12 @@ class SMPPBindManager(object):
     def getBindingCount(self):
         return sum(len(v) for v in self._binds.values())
     
+    def getBindingCountByType(self):
+        ret = {}
+        for key, value in self._binds.iteritems():
+            ret[key] = len(value)
+        return ret
+
     def __len__(self):
         return self.getBindingCount()
     
@@ -183,7 +199,7 @@ class SMPPBindManager(object):
                 binding = _binding
         
         if binding is None:
-            logging.warning("Couldn't find a binding to use to deliver SMPP message")
+            self.log.warning("Couldn't find a binding to use to deliver SMPP message")
         else:    
             self._delivery_binding_history.append(binding)
         return binding
