@@ -105,16 +105,29 @@ class SMPPServerFactory(ServerFactory):
         """ Unbinds and disconnects all the bindings for the given system_id.  """
         bind_mgr = self.getBoundConnections(system_id)
         if bind_mgr:
-            unbinds_list = [binding.unbind() for binding in bind_mgr]
+            unbinds_list = []
+            for bind in bind_mgr:
+                unbinds_list.append(bind.getDisconnectedDeferred())
+                bind.unbindAndDisconnect()
             d = defer.DeferredList(unbinds_list)
-            if unbinds_list:
-                # Disconnect from the remote server (apply via any of the (now unbound) bindings)
-                d.addCallback(lambda r: binding.disconnect())
         else:
             d = defer.succeed(None)
-        self
+        
         return d
 
+    def unbindAndRemoveGateway(self, system_id):
+        '''
+        Removes a running gateway from the config so they will be unable to rebind.
+        Any attempt to bind while unbinding will receive a ESME_RBINDFAIL error.
+        '''
+        self.config.systems[system_id]['max_bindings'] = 0
+        d = self.unbindGateway(system_id)
+        d.addCallback(self.removeGatewayFromConfig, system_id)
+        return d
+
+    def removeGatewayFromConfig(self, deferred_res, system_id):
+        self.config.systems.pop(system_id)
+        return deferred_res
 
 class SMPPBindManager(object):
     
