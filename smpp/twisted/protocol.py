@@ -303,7 +303,7 @@ class SMPPProtocolBase( protocol.Protocol ):
             try:
                 error.raiseException()
             except SMPPProtocolError as validation_error:
-                self.log.warning("SMPP Custom Validation error handling inbound PDU [%s] hex[%s]: %s'" % (reqPDU, _safelylogOutPdu(self.encoder.encode(reqPDU)), validation_error))
+                self.log.debug("Application raised error '%s', forwarding to client. Inbound PDU was [%s], hex[%s]" % (validation_error, reqPDU, _safelylogOutPdu(self.encoder.encode(reqPDU))))
                 return_cmd_status = validation_error.commandStatusName
                 shutdown = False
         else:
