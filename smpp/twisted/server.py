@@ -37,6 +37,9 @@ class SMPPServerFactory(ServerFactory):
     
     def getConfig(self):
         return self.config
+     
+    def getBoundConnectionCount(self, system_id):
+        return self.bound_connections[system_id].getMaxTransmitReceiveBindCount()
 
     def getBoundConnectionCountsStr(self, system_id):
         bind_counts = self.bound_connections[system_id].getBindingCountByType()
@@ -150,7 +153,12 @@ class SMPPBindManager(object):
         bind_type = connection.bind_type
         self._binds[bind_type].remove(connection)
         
-    def getBindingCount(self):
+    def getMaxTransmitReceiveBindCount(self):
+        return len(self._binds[pdu_types.CommandId.bind_transceiver]) + \
+               max(len(self._binds[pdu_types.CommandId.bind_transmitter]),
+                   len(self._binds[pdu_types.CommandId.bind_receiver]))        
+        
+    def getBindingCount(self):       
         return sum(len(v) for v in self._binds.values())
     
     def getBindingCountByType(self):
@@ -174,12 +182,10 @@ class SMPPBindManager(object):
         """
         if bind_type == pdu_types.CommandId.bind_transceiver:
             # Sum of current transceiver binds plus greater of current transmitter or receiver binds
-            connections_count = len(self._binds[pdu_types.CommandId.bind_transceiver]) + \
-                                max(len(self._binds[pdu_types.CommandId.bind_transmitter]),
-                                    len(self._binds[pdu_types.CommandId.bind_receiver]))
+            connections_count = self.getMaxTransmitReceiveBindCount()
         else:
             # Sum of transceiver binds plus existing binds of this type
-            connections_count = sum([len(self._binds[bt]) for bt in (pdu_types.CommandId.bind_transceiver,bind_type)])
+            connections_count = sum([len(self._binds[bt]) for bt in (pdu_types.CommandId.bind_transceiver, bind_type)])
         return connections_count
     
     def getNextBindingForDelivery(self):
