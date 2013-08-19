@@ -37,6 +37,9 @@ class SMPPServerFactory(ServerFactory):
     
     def getConfig(self):
         return self.config
+     
+    def getBoundConnectionCount(self, system_id):
+        return self.bound_connections[system_id].getMaxTransmitReceiveBindCount()
 
     def getBoundConnectionCountsStr(self, system_id):
         bind_counts = self.bound_connections[system_id].getBindingCountByType()
@@ -105,16 +108,29 @@ class SMPPServerFactory(ServerFactory):
         """ Unbinds and disconnects all the bindings for the given system_id.  """
         bind_mgr = self.getBoundConnections(system_id)
         if bind_mgr:
-            unbinds_list = [binding.unbind() for binding in bind_mgr]
+            unbinds_list = []
+            for bind in bind_mgr:
+                unbinds_list.append(bind.getDisconnectedDeferred())
+                bind.unbindAndDisconnect()
             d = defer.DeferredList(unbinds_list)
-            if unbinds_list:
-                # Disconnect from the remote server (apply via any of the (now unbound) bindings)
-                d.addCallback(lambda r: binding.disconnect())
         else:
             d = defer.succeed(None)
-        self
+        
         return d
 
+    def unbindAndRemoveGateway(self, system_id):
+        '''
+        Removes a running gateway from the config so they will be unable to rebind.
+        Any attempt to bind while unbinding will receive a ESME_RBINDFAIL error.
+        '''
+        self.config.systems[system_id]['max_bindings'] = 0
+        d = self.unbindGateway(system_id)
+        d.addCallback(self.removeGatewayFromConfig, system_id)
+        return d
+
+    def removeGatewayFromConfig(self, deferred_res, system_id):
+        self.config.systems.pop(system_id)
+        return deferred_res
 
 class SMPPBindManager(object):
     
@@ -137,7 +153,12 @@ class SMPPBindManager(object):
         bind_type = connection.bind_type
         self._binds[bind_type].remove(connection)
         
-    def getBindingCount(self):
+    def getMaxTransmitReceiveBindCount(self):
+        return len(self._binds[pdu_types.CommandId.bind_transceiver]) + \
+               max(len(self._binds[pdu_types.CommandId.bind_transmitter]),
+                   len(self._binds[pdu_types.CommandId.bind_receiver]))        
+        
+    def getBindingCount(self):       
         return sum(len(v) for v in self._binds.values())
     
     def getBindingCountByType(self):
@@ -161,12 +182,10 @@ class SMPPBindManager(object):
         """
         if bind_type == pdu_types.CommandId.bind_transceiver:
             # Sum of current transceiver binds plus greater of current transmitter or receiver binds
-            connections_count = len(self._binds[pdu_types.CommandId.bind_transceiver]) + \
-                                max(len(self._binds[pdu_types.CommandId.bind_transmitter]),
-                                    len(self._binds[pdu_types.CommandId.bind_receiver]))
+            connections_count = self.getMaxTransmitReceiveBindCount()
         else:
             # Sum of transceiver binds plus existing binds of this type
-            connections_count = sum([len(self._binds[bt]) for bt in (pdu_types.CommandId.bind_transceiver,bind_type)])
+            connections_count = sum([len(self._binds[bt]) for bt in (pdu_types.CommandId.bind_transceiver, bind_type)])
         return connections_count
     
     def getNextBindingForDelivery(self):

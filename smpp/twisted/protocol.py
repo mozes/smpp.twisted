@@ -736,9 +736,9 @@ class SMPPServerProtocol(SMPPProtocolBase):
         self.shutdown()
  
     def connectionLost(self, reason):
-        SMPPProtocolBase.connectionLost(self, reason)
         # Remove this connection from those stored in the factory
         self.factory.removeConnection(self)
+        SMPPProtocolBase.connectionLost(self, reason)
         
     def PDUReceived( self, pdu ):
         """Dispatches incoming PDUs
