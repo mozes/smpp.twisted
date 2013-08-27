@@ -39,15 +39,21 @@ class SMPPServerFactory(ServerFactory):
         return self.config
      
     def getBoundConnectionCount(self, system_id):
-        return self.bound_connections[system_id].getMaxTransmitReceiveBindCount()
+        if self.bound_connections.has_key(system_id):
+            return self.bound_connections[system_id].getMaxTransmitReceiveBindCount()
+        else:
+            return 0
 
     def getBoundConnectionCountsStr(self, system_id):
-        bind_counts = self.bound_connections[system_id].getBindingCountByType()
-        bound_connections_count = []
-        for key, value in bind_counts.iteritems(): 
-            bound_connections_count.append("%s: %d" % (key, value))
-        bound_connections_str = ', '.join(bound_connections_count)
-        return bound_connections_str
+        if self.bound_connections.has_key(system_id):
+            bind_counts = self.bound_connections[system_id].getBindingCountByType()
+            bound_connections_count = []
+            for key, value in bind_counts.iteritems(): 
+                bound_connections_count.append("%s: %d" % (key, value))
+            bound_connections_str = ', '.join(bound_connections_count)
+            return bound_connections_str
+        else:
+            return '0'
 
     def addBoundConnection(self, connection):
         """
