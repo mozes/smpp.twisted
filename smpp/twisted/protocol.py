@@ -91,7 +91,8 @@ class SMPPProtocolBase( protocol.Protocol ):
         """
         protocol.Protocol.connectionMade(self)
         self.port = self.transport.getHost().port
-
+        #Start the inactivity timer the connection is dropped if we receive no data
+        self.activateInactivityTimer()
         self.sessionState = SMPPSessionStates.OPEN
         self.log.warning("SMPP connection established from %s to port %s", self.transport.getPeer().host, self.port)
 
