@@ -37,6 +37,23 @@ class SMPPServerFactory(ServerFactory):
     
     def getConfig(self):
         return self.config
+     
+    def getBoundConnectionCount(self, system_id):
+        if self.bound_connections.has_key(system_id):
+            return self.bound_connections[system_id].getMaxTransmitReceiveBindCount()
+        else:
+            return 0
+
+    def getBoundConnectionCountsStr(self, system_id):
+        if self.bound_connections.has_key(system_id):
+            bind_counts = self.bound_connections[system_id].getBindingCountByType()
+            bound_connections_count = []
+            for key, value in bind_counts.iteritems(): 
+                bound_connections_count.append("%s: %d" % (key, value))
+            bound_connections_str = ', '.join(bound_connections_count)
+            return bound_connections_str
+        else:
+            return '0'
 
     def addBoundConnection(self, connection):
         """
@@ -48,7 +65,8 @@ class SMPPServerFactory(ServerFactory):
         if not system_id in self.bound_connections:
             self.bound_connections[system_id] = SMPPBindManager(system_id)
         self.bound_connections[system_id].addBinding(connection)
-        self.log.debug("'%s' now has %d bound SMPP connections" % (system_id, self.bound_connections[system_id].getBindingCount()))
+        bind_type = connection.bind_type
+        self.log.info("Added %s bind for '%s'. Active binds: %s. Max binds: %s" % (bind_type, system_id, self.getBoundConnectionCountsStr(system_id), self.config.systems[system_id]['max_bindings']))
         
     def removeConnection(self, connection):
         """
@@ -56,11 +74,12 @@ class SMPPServerFactory(ServerFactory):
         @param connection: An instance of SMPPServerProtocol
         """
         if connection.system_id is None:
-            logging.debug("SMPP connection attempt failed without binding.")
+            self.log.debug("SMPP connection attempt failed without binding.")
         else:
             system_id = connection.system_id
-            self.log.debug('Dropping SMPP binding for: %s. %d remain bound for this user' % (system_id, self.bound_connections[system_id].getBindingCount()-1))
+            bind_type = connection.bind_type
             self.bound_connections[system_id].removeBinding(connection)
+            self.log.info("Dropped %s bind for '%s'. Active binds: %s. Max binds: %s" % (bind_type, system_id, self.getBoundConnectionCountsStr(system_id), self.config.systems[system_id]['max_bindings']))
             # If this is the last binding for this service then remove the BindManager
             if self.bound_connections[system_id].getBindingCount() == 0:
                 self.bound_connections.pop(system_id)
@@ -95,16 +114,29 @@ class SMPPServerFactory(ServerFactory):
         """ Unbinds and disconnects all the bindings for the given system_id.  """
         bind_mgr = self.getBoundConnections(system_id)
         if bind_mgr:
-            unbinds_list = [binding.unbind() for binding in bind_mgr]
+            unbinds_list = []
+            for bind in bind_mgr:
+                unbinds_list.append(bind.getDisconnectedDeferred())
+                bind.unbindAndDisconnect()
             d = defer.DeferredList(unbinds_list)
-            if unbinds_list:
-                # Disconnect from the remote server (apply via any of the (now unbound) bindings)
-                d.addCallback(lambda r: binding.disconnect())
         else:
             d = defer.succeed(None)
-        self
+        
         return d
 
+    def unbindAndRemoveGateway(self, system_id):
+        '''
+        Removes a running gateway from the config so they will be unable to rebind.
+        Any attempt to bind while unbinding will receive a ESME_RBINDFAIL error.
+        '''
+        self.config.systems[system_id]['max_bindings'] = 0
+        d = self.unbindGateway(system_id)
+        d.addCallback(self.removeGatewayFromConfig, system_id)
+        return d
+
+    def removeGatewayFromConfig(self, deferred_res, system_id):
+        self.config.systems.pop(system_id)
+        return deferred_res
 
 class SMPPBindManager(object):
     
@@ -127,9 +159,20 @@ class SMPPBindManager(object):
         bind_type = connection.bind_type
         self._binds[bind_type].remove(connection)
         
-    def getBindingCount(self):
+    def getMaxTransmitReceiveBindCount(self):
+        return len(self._binds[pdu_types.CommandId.bind_transceiver]) + \
+               max(len(self._binds[pdu_types.CommandId.bind_transmitter]),
+                   len(self._binds[pdu_types.CommandId.bind_receiver]))        
+        
+    def getBindingCount(self):       
         return sum(len(v) for v in self._binds.values())
     
+    def getBindingCountByType(self):
+        ret = {}
+        for key, value in self._binds.iteritems():
+            ret[key] = len(value)
+        return ret
+
     def __len__(self):
         return self.getBindingCount()
     
@@ -145,12 +188,10 @@ class SMPPBindManager(object):
         """
         if bind_type == pdu_types.CommandId.bind_transceiver:
             # Sum of current transceiver binds plus greater of current transmitter or receiver binds
-            connections_count = len(self._binds[pdu_types.CommandId.bind_transceiver]) + \
-                                max(len(self._binds[pdu_types.CommandId.bind_transmitter]),
-                                    len(self._binds[pdu_types.CommandId.bind_receiver]))
+            connections_count = self.getMaxTransmitReceiveBindCount()
         else:
             # Sum of transceiver binds plus existing binds of this type
-            connections_count = sum([len(self._binds[bt]) for bt in (pdu_types.CommandId.bind_transceiver,bind_type)])
+            connections_count = sum([len(self._binds[bt]) for bt in (pdu_types.CommandId.bind_transceiver, bind_type)])
         return connections_count
     
     def getNextBindingForDelivery(self):
@@ -160,6 +201,7 @@ class SMPPBindManager(object):
         receiver bindings. Call this method to determine which
         binding to send down next so that traffic travels equally
         down the different binds.
+        @return smpp protocol or None
         """
         binding = None
         # If we now have more trx/rx bindings than have been used
@@ -182,9 +224,7 @@ class SMPPBindManager(object):
                 # If so then use it
                 binding = _binding
         
-        if binding is None:
-            logging.warning("Couldn't find a binding to use to deliver SMPP message")
-        else:    
+        if binding is not None:
             self._delivery_binding_history.append(binding)
         return binding
         
