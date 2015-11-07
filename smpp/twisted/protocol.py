@@ -771,14 +771,16 @@ class SMPPServerProtocol(SMPPProtocolBase):
         try:
             iface, auth_avatar, logout = yield self.factory.login(system_id, password, self.transport.getPeer().host)
         except error.UnauthorizedLogin:
-            if system_id not in self.factory.config.systems.keys():
-                self.log.warning('SMPP Bind request failed for system_id: "%s", System ID not configured' % system_id)
-                self.sendErrorResponse(reqPDU, CommandStatus.ESME_RINVSYSID, system_id)
-            else:
-                self.log.warning('SMPP Bind request failed for system_id: "%s", failed to authenticate' % system_id)
-                self.sendErrorResponse(reqPDU, CommandStatus.ESME_RINVPASWD, system_id)
+            self.log.warning('SMPP Bind request failed for system_id: "%s", failed to authenticate' % system_id)
+            self.sendErrorResponse(reqPDU, CommandStatus.ESME_RINVPASWD, system_id)
             return
         
+        # Only a configured system_id can bind
+        if system_id not in self.factory.config.systems.keys():
+            self.log.warning('SMPP Bind request failed for system_id: "%s", System ID not configured' % system_id)
+            self.sendErrorResponse(reqPDU, CommandStatus.ESME_RINVSYSID, system_id)
+            return 
+
         # Check we're not already bound, and are open to being bound
         if self.sessionState != SMPPSessionStates.OPEN:
             self.log.warning('Duplicate SMPP bind request received from: %s' % system_id)

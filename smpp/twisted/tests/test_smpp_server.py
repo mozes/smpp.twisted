@@ -274,7 +274,7 @@ class SMPPServerTestCase(SMPPServerBaseTest):
             seqNum = 1
         )
         self.proto.dataReceived(self.encoder.encode(pdu))
-        expected_pdu = operations.BindTransceiverResp(system_id='userB', seqNum=1, status=pdu_types.CommandStatus.ESME_RINVSYSID)
+        expected_pdu = operations.BindTransceiverResp(system_id='userB', seqNum=1, status=pdu_types.CommandStatus.ESME_RINVPASWD)
         self.assertEqual(self.tr.value(), self.encoder.encode(expected_pdu))
         connection = self.factory.getBoundConnections('userA')
         self.assertEqual(connection, None)
